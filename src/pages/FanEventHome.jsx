@@ -1,23 +1,87 @@
-import React, { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { supabase } from "@/lib/customSupabaseClient";
+
+const US_STATES = [
+  ["AL", "Alabama"], ["AK", "Alaska"], ["AZ", "Arizona"], ["AR", "Arkansas"],
+  ["CA", "California"], ["CO", "Colorado"], ["CT", "Connecticut"], ["DE", "Delaware"],
+  ["FL", "Florida"], ["GA", "Georgia"], ["HI", "Hawaii"], ["ID", "Idaho"],
+  ["IL", "Illinois"], ["IN", "Indiana"], ["IA", "Iowa"], ["KS", "Kansas"],
+  ["KY", "Kentucky"], ["LA", "Louisiana"], ["ME", "Maine"], ["MD", "Maryland"],
+  ["MA", "Massachusetts"], ["MI", "Michigan"], ["MN", "Minnesota"], ["MS", "Mississippi"],
+  ["MO", "Missouri"], ["MT", "Montana"], ["NE", "Nebraska"], ["NV", "Nevada"],
+  ["NH", "New Hampshire"], ["NJ", "New Jersey"], ["NM", "New Mexico"], ["NY", "New York"],
+  ["NC", "North Carolina"], ["ND", "North Dakota"], ["OH", "Ohio"], ["OK", "Oklahoma"],
+  ["OR", "Oregon"], ["PA", "Pennsylvania"], ["RI", "Rhode Island"], ["SC", "South Carolina"],
+  ["SD", "South Dakota"], ["TN", "Tennessee"], ["TX", "Texas"], ["UT", "Utah"],
+  ["VT", "Vermont"], ["VA", "Virginia"], ["WA", "Washington"], ["WV", "West Virginia"],
+  ["WI", "Wisconsin"], ["WY", "Wyoming"],
+];
 
 export default function FanEventHome() {
   const navigate = useNavigate();
 
-  const [state, setState] = useState("");
+  const [stateCode, setStateCode] = useState("");
   const [city, setCity] = useState("");
   const [radius, setRadius] = useState(25);
 
-  const canSearch = useMemo(() => {
-    return Boolean(state) && Boolean(city);
-  }, [state, city]);
+  const [cities, setCities] = useState([]);
+  const [citiesLoading, setCitiesLoading] = useState(false);
+  const [citiesError, setCitiesError] = useState(null);
+
+  const canSearch = useMemo(() => Boolean(stateCode) && Boolean(city), [stateCode, city]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCities() {
+      setCities([]);
+      setCity("");
+      setCitiesError(null);
+
+      if (!stateCode) return;
+
+      setCitiesLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from("cities")
+          .select("city_name")
+          .eq("state", stateCode)
+          .order("city_name", { ascending: true })
+          .limit(5000);
+
+        if (error) throw error;
+
+        const list = Array.isArray(data)
+          ? data.map((r) => r.city_name).filter(Boolean)
+          : [];
+
+        // de-dupe
+        const unique = Array.from(new Set(list));
+
+        if (!cancelled) setCities(unique);
+      } catch (e) {
+        if (!cancelled) {
+          setCitiesError(e?.message || "Could not load cities");
+          setCities([]);
+        }
+      } finally {
+        if (!cancelled) setCitiesLoading(false);
+      }
+    }
+
+    loadCities();
+    return () => {
+      cancelled = true;
+    };
+  }, [stateCode]);
 
   const onSearch = (e) => {
     e.preventDefault();
     if (!canSearch) return;
 
     const params = new URLSearchParams({
-      state,
+      state: stateCode,
       city,
       radius: String(radius),
     });
@@ -26,99 +90,80 @@ export default function FanEventHome() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0b0b0f", color: "white" }}>
-      {/* HERO */}
-      <div
-        style={{
-          width: "100%",
-          maxHeight: "420px",
-          overflow: "hidden",
-          background: "black",
-        }}
-      >
-        {/* Replace src with whatever your logo path is */}
-        <img
-          src="/blacklabel-entertainment.jpg"
-          alt="Black Label Entertainment"
-          style={{
-            width: "100%",
-            height: "420px",
-            objectFit: "cover",
-            display: "block",
-          }}
-          onError={(e) => {
-            // fallback if image missing
-            e.currentTarget.style.display = "none";
-          }}
-        />
-      </div>
+    <div className="min-h-screen bg-zinc-950 text-white">
+      <div className="mx-auto w-full max-w-4xl px-6 py-10">
+        <div className="mb-8">
+          <div className="text-xs uppercase tracking-[0.25em] text-white/50">
+            Black Label Entertainment
+          </div>
+          <h1 className="mt-2 text-3xl font-semibold">Find Shows Near You</h1>
+          <p className="mt-2 text-white/70">
+            Discover live concerts and events in your area.
+          </p>
+        </div>
 
-      {/* CONTENT */}
-      <div
-        style={{
-          maxWidth: "980px",
-          margin: "0 auto",
-          padding: "24px",
-        }}
-      >
-        <h1 style={{ fontSize: "24px", marginBottom: "6px" }}>Find Shows Near You</h1>
-        <p style={{ opacity: 0.8, marginBottom: "18px" }}>
-          Discover live concerts and events in your area.
-        </p>
-
-        <div
-          style={{
-            background: "rgba(255,255,255,0.06)",
-            border: "1px solid rgba(255,255,255,0.12)",
-            borderRadius: "16px",
-            padding: "16px",
-          }}
-        >
-          <form onSubmit={onSearch} style={{ display: "grid", gap: "12px" }}>
-            <label style={{ display: "grid", gap: "6px" }}>
-              <span style={{ fontSize: "12px", opacity: 0.85 }}>State</span>
-              <input
-                value={state}
-                onChange={(e) => setState(e.target.value)}
-                placeholder="e.g. IL"
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: "10px",
-                  border: "1px solid rgba(255,255,255,0.15)",
-                  background: "rgba(0,0,0,0.35)",
-                  color: "white",
-                }}
-              />
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-[0_0_60px_rgba(0,0,0,0.65)]">
+          <form onSubmit={onSearch} className="grid gap-4">
+            {/* State */}
+            <label className="grid gap-2">
+              <span className="text-sm text-white/80">State</span>
+              <select
+                value={stateCode}
+                onChange={(e) => setStateCode(e.target.value)}
+                className="h-11 rounded-xl border border-white/10 bg-black/30 px-3 outline-none focus:border-white/25"
+              >
+                <option value="">Select a state</option>
+                {US_STATES.map(([code, name]) => (
+                  <option key={code} value={code}>
+                    {name} ({code})
+                  </option>
+                ))}
+              </select>
             </label>
 
-            <label style={{ display: "grid", gap: "6px" }}>
-              <span style={{ fontSize: "12px", opacity: 0.85 }}>City</span>
-              <input
+            {/* City */}
+            <label className="grid gap-2">
+              <span className="text-sm text-white/80">City</span>
+              <select
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
-                placeholder="e.g. St. Louis"
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: "10px",
-                  border: "1px solid rgba(255,255,255,0.15)",
-                  background: "rgba(0,0,0,0.35)",
-                  color: "white",
-                }}
-              />
+                disabled={!stateCode || citiesLoading || cities.length === 0}
+                className="h-11 rounded-xl border border-white/10 bg-black/30 px-3 outline-none focus:border-white/25 disabled:opacity-60"
+              >
+                {!stateCode ? (
+                  <option value="">Select a state first</option>
+                ) : citiesLoading ? (
+                  <option value="">Loading cities…</option>
+                ) : cities.length === 0 ? (
+                  <option value="">
+                    {citiesError ? "Cities unavailable" : "No cities found"}
+                  </option>
+                ) : (
+                  <>
+                    <option value="">Select a city</option>
+                    {cities.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </>
+                )}
+              </select>
+
+              {citiesError ? (
+                <div className="text-xs text-red-300">
+                  {citiesError} (check Supabase RLS on `cities`)
+                </div>
+              ) : null}
             </label>
 
-            <label style={{ display: "grid", gap: "6px" }}>
-              <span style={{ fontSize: "12px", opacity: 0.85 }}>Search radius</span>
+            {/* Radius */}
+            <label className="grid gap-2">
+              <span className="text-sm text-white/80">Search radius</span>
               <select
                 value={radius}
                 onChange={(e) => setRadius(Number(e.target.value))}
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: "10px",
-                  border: "1px solid rgba(255,255,255,0.15)",
-                  background: "rgba(0,0,0,0.35)",
-                  color: "white",
-                }}
+                className="h-11 rounded-xl border border-white/10 bg-black/30 px-3 outline-none focus:border-white/25"
               >
                 <option value={5}>5 mi</option>
                 <option value={10}>10 mi</option>
@@ -131,28 +176,19 @@ export default function FanEventHome() {
             <button
               type="submit"
               disabled={!canSearch}
-              style={{
-                marginTop: "6px",
-                padding: "12px 14px",
-                borderRadius: "12px",
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: canSearch ? "#6d28d9" : "rgba(255,255,255,0.12)",
-                color: "white",
-                fontWeight: 600,
-                cursor: canSearch ? "pointer" : "not-allowed",
-              }}
+              className="mt-2 h-12 rounded-xl border border-white/15 bg-white/10 font-semibold hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Find Events
             </button>
 
-            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-              <a href="/fans/submit" style={{ color: "white", opacity: 0.9 }}>
+            <div className="mt-2 flex flex-wrap gap-3 text-sm text-white/75">
+              <Link className="hover:text-white" to="/fans/submit">
                 Submit a show
-              </a>
-              <span style={{ opacity: 0.5 }}>•</span>
-              <a href="/fans/submit" style={{ color: "white", opacity: 0.9 }}>
+              </Link>
+              <span className="text-white/30">•</span>
+              <Link className="hover:text-white" to="/fans/submit">
                 I’m a venue/promoter
-              </a>
+              </Link>
             </div>
           </form>
         </div>
