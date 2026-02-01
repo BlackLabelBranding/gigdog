@@ -1,13 +1,11 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from '@supabase/supabase-js';
 
-// Best practice: env vars on Vercel (Settings → Environment Variables)
-const SUPABASE_URL =
-  import.meta.env.VITE_SUPABASE_URL ||
-  "PASTE_YOUR_SUPABASE_URL_HERE";
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const SUPABASE_ANON_KEY =
-  import.meta.env.VITE_SUPABASE_ANON_KEY ||
-  "PASTE_YOUR_SUPABASE_ANON_KEY_HERE";
+if (!supabaseUrl || !supabaseAnonKey) {
+  // This helps you instantly see the real issue in Vercel preview/prod
+  console.error('Missing Supabase env vars. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel.');
+}
 
-// Create a single shared client for the app
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
