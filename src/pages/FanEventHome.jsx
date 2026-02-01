@@ -1,6 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { Helmet } from "react-helmet";
 import { Link, useNavigate } from "react-router-dom";
+import { MapPin, Search, Radio, Loader2, AlertCircle } from "lucide-react";
 import { supabase } from "@/lib/customSupabaseClient";
+
+// Matches the "gold" vibe used on your results page
+const GOLD = "#D4AF37";
+const GOLD_2 = "#f4d03f";
 
 const US_STATES = [
   ["AL", "Alabama"], ["AK", "Alaska"], ["AZ", "Arizona"], ["AR", "Arkansas"],
@@ -15,8 +21,10 @@ const US_STATES = [
   ["OR", "Oregon"], ["PA", "Pennsylvania"], ["RI", "Rhode Island"], ["SC", "South Carolina"],
   ["SD", "South Dakota"], ["TN", "Tennessee"], ["TX", "Texas"], ["UT", "Utah"],
   ["VT", "Vermont"], ["VA", "Virginia"], ["WA", "Washington"], ["WV", "West Virginia"],
-  ["WI", "Wisconsin"], ["WY", "Wyoming"],
+  ["WI", "Wisconsin"], ["WY", "Wyoming"], ["DC", "District of Columbia"],
 ];
+
+const RADIUS_OPTIONS = [5, 10, 25, 50, 100];
 
 export default function FanEventHome() {
   const navigate = useNavigate();
@@ -27,9 +35,12 @@ export default function FanEventHome() {
 
   const [cities, setCities] = useState([]);
   const [citiesLoading, setCitiesLoading] = useState(false);
-  const [citiesError, setCitiesError] = useState(null);
+  const [citiesError, setCitiesError] = useState("");
 
-  const canSearch = useMemo(() => Boolean(stateCode) && Boolean(city), [stateCode, city]);
+  const canSearch = useMemo(
+    () => Boolean(stateCode) && Boolean(city),
+    [stateCode, city]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -37,7 +48,7 @@ export default function FanEventHome() {
     async function loadCities() {
       setCities([]);
       setCity("");
-      setCitiesError(null);
+      setCitiesError("");
 
       if (!stateCode) return;
 
@@ -45,7 +56,7 @@ export default function FanEventHome() {
       try {
         const { data, error } = await supabase
           .from("cities")
-          .select("city_name")
+          .select("id, city_name, state")
           .eq("state", stateCode)
           .order("city_name", { ascending: true })
           .limit(5000);
@@ -61,10 +72,7 @@ export default function FanEventHome() {
 
         if (!cancelled) setCities(unique);
       } catch (e) {
-        if (!cancelled) {
-          setCitiesError(e?.message || "Could not load cities");
-          setCities([]);
-        }
+        if (!cancelled) setCitiesError(e?.message || "Could not load cities.");
       } finally {
         if (!cancelled) setCitiesLoading(false);
       }
@@ -90,109 +98,186 @@ export default function FanEventHome() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
-      <div className="mx-auto w-full max-w-4xl px-6 py-10">
-        <div className="mb-8">
-          <div className="text-xs uppercase tracking-[0.25em] text-white/50">
+    <>
+      <Helmet>
+        <title>Find Live Events Near You - Black Label Entertainment</title>
+        <meta
+          name="description"
+          content="Discover concerts, shows, and live entertainment events in your area."
+        />
+      </Helmet>
+
+      <div className="min-h-screen bg-gradient-to-b from-[#121212] via-[#1a1a1a] to-[#121212] text-white flex items-center justify-center px-6 py-14">
+        <div className="w-full max-w-3xl">
+          {/* Top label */}
+          <div className="text-xs uppercase tracking-[0.35em] text-white/45 mb-3">
             Black Label Entertainment
           </div>
-          <h1 className="mt-2 text-3xl font-semibold">Find Shows Near You</h1>
-          <p className="mt-2 text-white/70">
+
+          {/* Title */}
+          <h1
+            className="text-4xl md:text-5xl font-bold mb-3"
+            style={{
+              backgroundImage: `linear-gradient(90deg, ${GOLD}, ${GOLD_2})`,
+              WebkitBackgroundClip: "text",
+              color: "transparent",
+            }}
+          >
+            Find Shows Near You
+          </h1>
+
+          <p className="text-white/65 text-lg mb-10">
             Discover live concerts and events in your area.
           </p>
-        </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-[0_0_60px_rgba(0,0,0,0.65)]">
-          <form onSubmit={onSearch} className="grid gap-4">
-            {/* State */}
-            <label className="grid gap-2">
-              <span className="text-sm text-white/80">State</span>
-              <select
-                value={stateCode}
-                onChange={(e) => setStateCode(e.target.value)}
-                className="h-11 rounded-xl border border-white/10 bg-black/30 px-3 outline-none focus:border-white/25"
-              >
-                <option value="">Select a state</option>
-                {US_STATES.map(([code, name]) => (
-                  <option key={code} value={code}>
-                    {name} ({code})
-                  </option>
-                ))}
-              </select>
-            </label>
+          {/* Card */}
+          <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-7 md:p-8 shadow-2xl border border-[#D4AF37]/20">
+            {citiesError ? (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 mb-6 flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-red-200">
+                  <p className="font-semibold">Unable to load city list</p>
+                  <p className="opacity-90">{citiesError}</p>
+                </div>
+              </div>
+            ) : null}
 
-            {/* City */}
-            <label className="grid gap-2">
-              <span className="text-sm text-white/80">City</span>
-              <select
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                disabled={!stateCode || citiesLoading || cities.length === 0}
-                className="h-11 rounded-xl border border-white/10 bg-black/30 px-3 outline-none focus:border-white/25 disabled:opacity-60"
-              >
-                {!stateCode ? (
-                  <option value="">Select a state first</option>
-                ) : citiesLoading ? (
-                  <option value="">Loading cities…</option>
-                ) : cities.length === 0 ? (
-                  <option value="">
-                    {citiesError ? "Cities unavailable" : "No cities found"}
-                  </option>
-                ) : (
-                  <>
-                    <option value="">Select a city</option>
-                    {cities.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
+            <form onSubmit={onSearch} className="space-y-6">
+              {/* State */}
+              <div>
+                <label className="block text-sm font-medium text-white/75 mb-2 flex items-center gap-2">
+                  <MapPin className="w-4 h-4" style={{ color: GOLD }} />
+                  State
+                </label>
+
+                <div className="relative">
+                  <select
+                    value={stateCode}
+                    onChange={(e) => setStateCode(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 transition-all appearance-none"
+                    style={{ "--tw-ring-color": GOLD }}
+                  >
+                    <option value="" className="bg-[#1a1a1a]">
+                      Select a state
+                    </option>
+                    {US_STATES.map(([code, name]) => (
+                      <option key={code} value={code} className="bg-[#1a1a1a]">
+                        {name} ({code})
                       </option>
                     ))}
-                  </>
-                )}
-              </select>
+                  </select>
 
-              {citiesError ? (
-                <div className="text-xs text-red-300">
-                  {citiesError} (check Supabase RLS on `cities`)
+                  {citiesLoading ? (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <Loader2 className="w-4 h-4 animate-spin" style={{ color: GOLD }} />
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
-            </label>
+              </div>
 
-            {/* Radius */}
-            <label className="grid gap-2">
-              <span className="text-sm text-white/80">Search radius</span>
-              <select
-                value={radius}
-                onChange={(e) => setRadius(Number(e.target.value))}
-                className="h-11 rounded-xl border border-white/10 bg-black/30 px-3 outline-none focus:border-white/25"
+              {/* City */}
+              <div>
+                <label className="block text-sm font-medium text-white/75 mb-2 flex items-center gap-2">
+                  <Search className="w-4 h-4" style={{ color: GOLD }} />
+                  City
+                </label>
+
+                <select
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  disabled={!stateCode || citiesLoading || cities.length === 0}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                  style={{ "--tw-ring-color": GOLD }}
+                >
+                  {!stateCode ? (
+                    <option value="" className="bg-[#1a1a1a]">
+                      Select a state first
+                    </option>
+                  ) : citiesLoading ? (
+                    <option value="" className="bg-[#1a1a1a]">
+                      Loading cities...
+                    </option>
+                  ) : cities.length === 0 ? (
+                    <option value="" className="bg-[#1a1a1a]">
+                      No cities found
+                    </option>
+                  ) : (
+                    <>
+                      <option value="" className="bg-[#1a1a1a]">
+                        Select a city
+                      </option>
+                      {cities.map((c) => (
+                        <option key={c} value={c} className="bg-[#1a1a1a]">
+                          {c}
+                        </option>
+                      ))}
+                    </>
+                  )}
+                </select>
+              </div>
+
+              {/* Radius */}
+              <div>
+                <label className="block text-sm font-medium text-white/75 mb-3 flex items-center gap-2">
+                  <Radio className="w-4 h-4" style={{ color: GOLD }} />
+                  Search Radius
+                </label>
+
+                <div className="flex flex-wrap gap-3">
+                  {RADIUS_OPTIONS.map((r) => (
+                    <button
+                      type="button"
+                      key={r}
+                      onClick={() => setRadius(r)}
+                      className={`px-6 py-2 rounded-xl font-medium transition-all ${
+                        radius === r
+                          ? "text-black shadow-lg scale-[1.03]"
+                          : "bg-black/40 text-white/75 hover:text-white border border-white/10 hover:border-white/20"
+                      }`}
+                      style={
+                        radius === r
+                          ? {
+                              backgroundImage: `linear-gradient(90deg, ${GOLD}, ${GOLD_2})`,
+                            }
+                          : undefined
+                      }
+                    >
+                      {r} mi
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* CTA */}
+              <button
+                type="submit"
+                disabled={!canSearch}
+                className="w-full font-bold py-4 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
+                style={{
+                  backgroundImage: `linear-gradient(90deg, ${GOLD}, ${GOLD_2})`,
+                  color: "#111",
+                }}
               >
-                <option value={5}>5 mi</option>
-                <option value={10}>10 mi</option>
-                <option value={25}>25 mi</option>
-                <option value={50}>50 mi</option>
-                <option value={100}>100 mi</option>
-              </select>
-            </label>
+                <span className="inline-flex items-center justify-center gap-2">
+                  <Search className="w-5 h-5" />
+                  Find Events
+                </span>
+              </button>
 
-            <button
-              type="submit"
-              disabled={!canSearch}
-              className="mt-2 h-12 rounded-xl border border-white/15 bg-white/10 font-semibold hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Find Events
-            </button>
-
-            <div className="mt-2 flex flex-wrap gap-3 text-sm text-white/75">
-              <Link className="hover:text-white" to="/fans/submit">
-                Submit a show
-              </Link>
-              <span className="text-white/30">•</span>
-              <Link className="hover:text-white" to="/fans/submit">
-                I’m a venue/promoter
-              </Link>
-            </div>
-          </form>
+              {/* Footer link: ONLY ONE (removed venue/promoter) */}
+              <div className="pt-2 flex justify-center">
+                <Link
+                  to="/fans/submit"
+                  className="font-medium transition-colors underline-offset-4 hover:underline"
+                  style={{ color: GOLD }}
+                >
+                  Submit a show
+                </Link>
+              </div>
+            </form>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
