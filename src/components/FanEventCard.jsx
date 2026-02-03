@@ -1,11 +1,35 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Calendar, MapPin, Navigation } from 'lucide-react';
+import { Calendar, MapPin, Navigation, Music } from 'lucide-react';
 import { formatEventDate } from '@/utils/dateHelpers';
+import { supabase } from '@/lib/customSupabaseClient';
 
 function FanEventCard({ event, index }) {
   const navigate = useNavigate();
+
+  // Prefer display_image_url (from your view), fallback to image_url (table)
+  const rawImage = event?.display_image_url || event?.image_url || null;
+
+  // Convert storage path -> public URL when needed
+  const imageSrc = useMemo(() => {
+    if (!rawImage) return null;
+
+    // Already a full URL
+    if (typeof rawImage === 'string' && rawImage.startsWith('http')) return rawImage;
+
+    // Likely a Supabase Storage path (e.g. "profile_photos/klincher.jpg")
+    try {
+      const { data } = supabase.storage
+        .from('artists') // ✅ CHANGE THIS if your bucket name is different
+        .getPublicUrl(rawImage);
+
+      return data?.publicUrl || null;
+    } catch (e) {
+      console.error('Failed to build public image URL:', e);
+      return null;
+    }
+  }, [rawImage]);
 
   return (
     <motion.div
@@ -15,14 +39,20 @@ function FanEventCard({ event, index }) {
       onClick={() => navigate(`/fans/event/${event.id}`)}
       className="group cursor-pointer bg-gradient-to-br from-white/5 to-white/[0.02] backdrop-blur-lg rounded-xl overflow-hidden border border-[#D4AF37]/20 hover:border-[#D4AF37]/60 shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105"
     >
-      {event.image_url && (
+      {imageSrc ? (
         <div className="relative h-48 overflow-hidden">
           <img
-            src={event.image_url}
+            src={imageSrc}
             alt={event.title}
             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
             loading="lazy"
           />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+        </div>
+      ) : (
+        // Optional: keep a consistent card layout even without an image
+        <div className="relative h-48 overflow-hidden bg-black/30 flex items-center justify-center">
+          <Music className="w-12 h-12 text-white/10" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
         </div>
       )}
