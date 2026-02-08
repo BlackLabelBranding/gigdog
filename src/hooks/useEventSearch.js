@@ -1,3 +1,4 @@
+// src/hooks/useEventSearch.js
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/customSupabaseClient";
 import { calculateDistance } from "@/utils/haversine";
@@ -106,10 +107,10 @@ export function useEventSearch(state, city, radius, userLat = null, userLng = nu
 
         // 2) Fetch approved events
         // KEY CHANGE:
-        // - If radiusMiles > 0 and we have a center, do NOT filter by state.
-        //   This allows cross-state events (e.g., IL search includes St. Louis MO).
+        // - Use the GigDog event cards VIEW so we always receive card_image_url
+        // - If radiusMiles > 0 and we have a center, do NOT filter by state (cross-state allowed)
         let query = supabase
-          .from("events")
+          .from("v_gigdog_event_cards")
           .select("*")
           .eq("status", "approved")
           .order("start_datetime", { ascending: true, nullsFirst: false });
